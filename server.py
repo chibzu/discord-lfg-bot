@@ -127,7 +127,7 @@ class ChibbleBot(discord.Client):
             print(e.__class__.__name__)
                     
     
-    async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent):
+    async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent):                    
         # If message being reacted to isn't the bot's do nothing
         if payload.message_author_id != self.user.id:
             return
@@ -140,13 +140,15 @@ class ChibbleBot(discord.Client):
         
         if reacted_message.id == guild_messages[payload.guild_id]["game_interests"].id:
             def findReaction(reaction):
-                return reaction.emoji == payload.emoji.name
+                emoji_name = self.get_normalized_reaction_name(reaction)                
+                return emoji_name == payload.emoji.name
             reaction = next(filter(findReaction, reacted_message.reactions))
+            emoji_name = self.get_normalized_reaction_name(reaction)   
             
             if reaction.count == 1:
                 reacting_user = await self.fetch_user(payload.user_id)
-                pending_associations[reacting_user.id] = { "emoji": reaction.emoji, "guild": payload.guild_id }
-                await reacting_user.send(f"Looks like you added a new reaction emoji, what game should {reaction.emoji} represent?")
+                pending_associations[reacting_user.id] = { "emoji": emoji_name, "guild": payload.guild_id }
+                await reacting_user.send(f"Looks like you added a new reaction emoji, what game should {emoji_name} represent?")
             else: 
                 user_schedules = guild_user_schedules[payload.guild_id]
                 if payload.user_id not in user_schedules:
@@ -154,7 +156,7 @@ class ChibbleBot(discord.Client):
                     
                 game_associations = guild_game_associations[payload.guild_id]
                 def findAssociation(assoc):
-                    return assoc["emoji"] == reaction.emoji
+                    return assoc["emoji"] == emoji_name
                 association = next(filter(findAssociation, game_associations))            
                 user_schedules[payload.user_id]["games"].append(association["game"])            
               
@@ -184,13 +186,14 @@ class ChibbleBot(discord.Client):
         
         if reacted_message.id == guild_messages[payload.guild_id]["game_interests"].id:
             def findReaction(reaction):
-                return reaction.emoji == payload.emoji.name
+                emoji_name = self.get_normalized_reaction_name(reaction)     
+                return emoji_name == payload.emoji.name
             reaction = next(filter(findReaction, reacted_message.reactions), None)
             
             if (reaction == None):
                 game_associations = guild_game_associations[payload.guild_id]
                 def findAssociation(assoc):
-                    return assoc["emoji"] == payload.emoji.name
+                    return assoc["emoji"] == self.get_normalized_reaction_name(payload)
                 association = next(filter(findAssociation, game_associations))
                 game_associations.remove(association)
                 
@@ -351,10 +354,13 @@ class ChibbleBot(discord.Client):
                         
                         self.save_to_disk()
                         
-    async def update_schedule_suggestion(self, guild_id):                                 
+    async def update_schedule_suggestion(self, guild_id):   
+        quorum_threshold = 2                              
         # Update the possibility calendar message
         week_analysis = [[], [], [], [], [], [], []]
         user_schedules = guild_user_schedules[guild_id]
+        print("update_schedule_suggestion")
+        print(user_schedules)
         for schedule in user_schedules.values():
             for day in schedule["days"]:
                 for game in schedule["games"]:
@@ -362,25 +368,38 @@ class ChibbleBot(discord.Client):
 
         week_analysis_str = ""
         game_associations = guild_game_associations[guild_id]
+        print(game_associations)
         at_least_one_quorum = False
         for day in range(len(week_analysis)):
             quorum = False
             day_str = ""            
             for association in game_associations:
-                if week_analysis[day].count(association["game"]) > 2:
+                if week_analysis[day].count(association["game"]) > quorum_threshold:
                     day_str += f"{association["game"]}, "
                     quorum = True
                     at_least_one_quorum = True
             if quorum:
                 week_analysis_str += f"**{day_name_map[day]}**: {day_str[:-2]} \n"
                 
-        if at_least_one_quorum:
-            schedule_suggestion = guild_messages[guild_id]["schedule_suggestion"]
+        schedule_suggestion = guild_messages[guild_id]["schedule_suggestion"]                
+        if at_least_one_quorum:            
             new_schedule = "# Possibly Good Days To Game\n\n"
             new_schedule += week_analysis_str
             new_schedule += "\n"
                 
             await schedule_suggestion.edit(content=new_schedule)
+        else:
+            await schedule_suggestion.edit(content=textwrap.dedent(""" 
+                # Possibly Good Days To Game
+                
+                No Days Currently Lining Up  :|                                                      
+            """))
+            
+    def get_normalized_reaction_name(self, reaction):
+        if (isinstance(reaction.emoji, discord.PartialEmoji)):
+            return reaction.emoji.name
+        else:
+            return reaction.emoji
             
          
          
