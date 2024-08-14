@@ -312,10 +312,7 @@ class ChibbleBot(discord.Client):
                     
                 channels = await guild.fetch_channels()
                 for channel in channels:
-                    if (channel.type == discord.ChannelType.text and channel.name == "lfg-chibblebot"):
-                        await channel.send(".\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n.") 
-                        
-                        
+                    if (channel.type == discord.ChannelType.text and channel.name == "lfg-chibblebot"):                                                
                         game_interests_str = "# What'cha Playing This Week?\n\n"
                         if len(guild_game_associations[guild.id]) == 0:
                             game_interests_str += "No games being played yet, add an emoji reaction to this message to get started!\n\n\n"
@@ -396,7 +393,7 @@ class ChibbleBot(discord.Client):
             """))
             
     def get_normalized_reaction_name(self, reaction):
-        if (isinstance(reaction.emoji, discord.PartialEmoji)):
+        if (isinstance(reaction.emoji, discord.PartialEmoji) or isinstance(reaction.emoji, discord.Emoji)):
             return reaction.emoji.name
         else:
             return reaction.emoji
